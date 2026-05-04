@@ -1,6 +1,3 @@
-"""Incident REST endpoints. State transitions go through the State pattern.
-The RCA gate is enforced inside ResolvedState.to_closed -> rca_validator.validate.
-"""
 from __future__ import annotations
 
 from datetime import datetime, timezone
