@@ -1,7 +1,3 @@
-"""Mandatory RCA validator. Lives outside the State object so it can be
-unit-tested in isolation, but is invoked from the State object so the gate
-is enforced for ANY caller (API, script, future cron).
-"""
 from datetime import datetime
 from typing import Protocol
 
