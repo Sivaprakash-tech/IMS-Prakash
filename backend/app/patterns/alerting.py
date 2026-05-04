@@ -1,10 +1,3 @@
-"""Strategy pattern for alerting.
-
-Production swap: replace P0Alerter.dispatch with a PagerDuty webhook call,
-P1Alerter.dispatch with a Slack #alerts post, P2Alerter.dispatch with a
-Slack #noise post. The interface stays the same; ALERT_MAP rewires the
-component-type to severity-tier in one place.
-"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
