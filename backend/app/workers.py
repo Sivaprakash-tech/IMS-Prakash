@@ -1,15 +1,3 @@
-"""Async worker pool: drains the ingest queue, runs debouncer, persists.
-
-Per signal:
-  1. write raw payload to Mongo (audit log, append-only)
-  2. claim Redis dedup window with SET NX EX 10
-  3. if won the claim => create work item in Postgres + fire alerter
-  4. either way: append signal_link row + bump signal_count + bump metrics bucket
-  5. update Redis live-feed sorted set for the dashboard
-
-Failure mode: any individual signal failure is logged and skipped; the
-worker keeps draining. We do NOT crash the loop on a single bad signal.
-"""
 from __future__ import annotations
 
 import asyncio
