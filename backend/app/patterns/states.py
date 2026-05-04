@@ -1,12 +1,3 @@
-"""State pattern for the work item lifecycle.
-
-OPEN -> INVESTIGATING -> RESOLVED -> CLOSED
-
-Transitions are encapsulated per-state class. The CLOSE transition (out of
-RESOLVED) is the only one that calls the RCA validator. Because the gate
-lives on the state object, every caller (REST API, scripts, future cron)
-goes through the same check; the API is just one entry point.
-"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
