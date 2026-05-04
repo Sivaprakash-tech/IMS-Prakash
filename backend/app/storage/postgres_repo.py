@@ -1,4 +1,3 @@
-"""Repository layer for Postgres. All DB writes are wrapped with tenacity retries."""
 from datetime import datetime
 from typing import Sequence
 
