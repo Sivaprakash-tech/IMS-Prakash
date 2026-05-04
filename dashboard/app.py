@@ -1,10 +1,3 @@
-"""IMS Streamlit dashboard.
-
-Three tabs per the spec:
-  1. Live Feed — active incidents sorted by severity
-  2. Incident Detail — work item + raw signals from Mongo + status controls
-  3. RCA Form — start/end pickers, root cause dropdown, fix/prevention
-"""
 from __future__ import annotations
 
 import os
