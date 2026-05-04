@@ -1,0 +1,63 @@
+# Optional load-test pod. Apply with: kubectl apply -f k8s/08-locust.yaml
+# Then visit http://localhost:8089 (Locust web UI).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: locust
+  namespace: ims
+  labels: { app: locust }
+spec:
+  type: NodePort
+  selector: { app: locust }
+  ports:
+    - port: 8089
+      targetPort: 8089
+      nodePort: 30089
+      name: http
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ims-locustfile
+  namespace: ims
+# data is populated by deploy.sh from scripts/locustfile.py.
+data: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: locust
+  namespace: ims
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: locust }
+  template:
+    metadata:
+      labels: { app: locust }
+    spec:
+      containers:
+        - name: locust
+          image: ims-backend:local           # backend image already includes locust
+          imagePullPolicy: IfNotPresent
+          command: ["locust"]
+          args:
+            - "-f"
+            - "/locust/locustfile.py"
+            - "--host=http://backend:8000"
+            - "--web-host=0.0.0.0"
+          ports:
+            - containerPort: 8089
+              name: http
+          volumeMounts:
+            - name: locustfile
+              mountPath: /locust
+              readOnly: true
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits:   { cpu: "2",  memory: 512Mi }
+      volumes:
+        - name: locustfile
+          configMap:
+            name: ims-locustfile

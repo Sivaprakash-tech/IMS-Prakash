@@ -1,0 +1,17 @@
+# Kind cluster config for IMS.
+# extraPortMappings expose NodePort services on the host so localhost:8000/8501/8089 work.
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+name: ims
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080   # backend NodePort
+        hostPort: 8000
+        protocol: TCP
+      - containerPort: 30081   # dashboard NodePort
+        hostPort: 8501
+        protocol: TCP
+      - containerPort: 30089   # locust NodePort (optional)
+        hostPort: 8089
+        protocol: TCP

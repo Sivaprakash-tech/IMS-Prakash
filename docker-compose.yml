@@ -1,0 +1,127 @@
+services:
+  postgres:
+    image: timescale/timescaledb:2.16.1-pg16
+    container_name: ims_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ims}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ims_pw}
+      POSTGRES_DB: ${POSTGRES_DB:-ims}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ims} -d ${POSTGRES_DB:-ims}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mongo:
+    image: mongo:7
+    container_name: ims_mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-ims}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-ims_pw}
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: ims_redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ims_backend
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ims}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ims_pw}
+      POSTGRES_DB: ${POSTGRES_DB:-ims}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      MONGO_USER: ${MONGO_USER:-ims}
+      MONGO_PASSWORD: ${MONGO_PASSWORD:-ims_pw}
+      MONGO_HOST: mongo
+      MONGO_PORT: 27017
+      MONGO_DB: ${MONGO_DB:-ims_signals}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      QUEUE_MAXSIZE: ${QUEUE_MAXSIZE:-50000}
+      QUEUE_BACKPRESSURE_THRESHOLD: ${QUEUE_BACKPRESSURE_THRESHOLD:-0.80}
+      DEDUP_WINDOW_SECONDS: ${DEDUP_WINDOW_SECONDS:-10}
+      WORKER_COUNT: ${WORKER_COUNT:-8}
+      RATE_LIMIT_PER_SECOND: ${RATE_LIMIT_PER_SECOND:-1000}
+      THROUGHPUT_LOG_INTERVAL: ${THROUGHPUT_LOG_INTERVAL:-5}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./scripts:/app/scripts:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=2).status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: ims_dashboard
+    environment:
+      BACKEND_URL: http://backend:8000
+      DASHBOARD_REFRESH_SECONDS: ${DASHBOARD_REFRESH_SECONDS:-2}
+    ports:
+      - "8501:8501"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  locust:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ims_locust
+    command: ["locust", "-f", "/app/scripts/locustfile.py", "--host=http://backend:8000"]
+    ports:
+      - "8089:8089"
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./scripts:/app/scripts:ro
+    profiles:
+      - load
+
+volumes:
+  pg_data:
+  mongo_data:
+  redis_data:
