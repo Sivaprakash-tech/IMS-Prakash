@@ -1,10 +1,3 @@
-"""Ingestion: bounded asyncio.Queue + backpressure.
-
-The producer side. Request handlers shove signals onto this queue and
-return 202 immediately. If the queue is at >= QUEUE_BACKPRESSURE_THRESHOLD,
-new signals are rejected with 503 + Retry-After. This is the line of defense
-against a slow persistence layer crashing the API.
-"""
 from __future__ import annotations
 
 import asyncio
