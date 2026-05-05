@@ -1,5 +1,5 @@
 ```markdown
- Incident Management System (IMS)
+# Incident Management System (IMS)
 
 A scalable **Incident Management System** built with microservices and deployed using:
 
@@ -12,38 +12,16 @@ A scalable **Incident Management System** built with microservices and deployed 
 
 #  System Architecture
 
-```
+- **Backend (FastAPI)** → Processes incoming signals
+- **Redis** → Queue & buffering
+- **MongoDB** → Stores raw signals
+- **PostgreSQL (TimescaleDB)** → Stores incidents
+- **Dashboard (Streamlit)** → Visualization
+- **Locust** → Load testing
 
-```
-    ┌──────────────┐
-    │   Locust     │
-    │ Load Testing │
-    └──────┬───────┘
-           │
-           ▼
-    ┌──────────────┐
-    │   Backend    │  (FastAPI)
-    │  /signals API│
-    └──────┬───────┘
-           │
- ┌─────────┼──────────┐
- ▼         ▼          ▼
-```
+# Data flow:
 
-┌────────┐ ┌────────┐ ┌────────┐
-│ Redis  │ │ Mongo  │ │Postgres│
-│ Queue  │ │Signals │ │Incidents│
-└────────┘ └────────┘ └────────┘
-│
-▼
-┌──────────────┐
-│  Dashboard   │
-│  (Streamlit) │
-└──────────────┘
-
-````
-
----
+Locust → Backend → Redis Queue → Workers → MongoDB + PostgreSQL → Dashboard
 
 # ⚙️ Tech Stack
 
@@ -57,16 +35,14 @@ A scalable **Incident Management System** built with microservices and deployed 
 
 ---
 
-# 🐳 Docker Implementation
+# Docker Implementation
 
-## ✅ Containers Running
-
-
-::contentReference[oaicite:0]{index=0}
+<img width="1600" height="436" alt="image" src="https://github.com/user-attachments/assets/8a236eb4-1401-460e-9f3c-fb83c0acf401" />
 
 
-✔ Backend, Dashboard, Redis, MongoDB, PostgreSQL all running  
-✔ Health checks passing  
+ ✅ Containers Running
+
+
 
 ---
 
