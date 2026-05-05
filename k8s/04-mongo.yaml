@@ -4,14 +4,17 @@ kind: Service
 metadata:
   name: mongo
   namespace: ims
-  labels: { app: mongo }
+  labels:
+    app: mongo
 spec:
   clusterIP: None
-  selector: { app: mongo }
+  selector:
+    app: mongo
   ports:
     - port: 27017
       targetPort: 27017
       name: mongo
+
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -22,10 +25,12 @@ spec:
   serviceName: mongo
   replicas: 1
   selector:
-    matchLabels: { app: mongo }
+    matchLabels:
+      app: mongo
   template:
     metadata:
-      labels: { app: mongo }
+      labels:
+        app: mongo
     spec:
       containers:
         - name: mongo
@@ -33,6 +38,7 @@ spec:
           ports:
             - containerPort: 27017
               name: mongo
+
           env:
             - name: MONGO_INITDB_ROOT_USERNAME
               valueFrom:
@@ -44,27 +50,49 @@ spec:
                 secretKeyRef:
                   name: ims-db-secret
                   key: MONGO_PASSWORD
+
           volumeMounts:
             - name: data
               mountPath: /data/db
+
+          # ✅ FIXED READINESS PROBE (auth + timeout)
           readinessProbe:
             exec:
               command:
                 - mongosh
-                - --quiet
-                - --eval
+                - "-u"
+                - "ims"
+                - "-p"
+                - "ims_pw"
+                - "--authenticationDatabase"
+                - "admin"
+                - "--quiet"
+                - "--eval"
                 - "db.adminCommand('ping').ok"
-            initialDelaySeconds: 15
-            periodSeconds: 5
+            initialDelaySeconds: 30
+            timeoutSeconds: 5
+            periodSeconds: 10
+            failureThreshold: 5
+
+          # ✅ FIXED LIVENESS PROBE (auth + safe timing)
           livenessProbe:
             exec:
               command:
                 - mongosh
-                - --quiet
-                - --eval
+                - "-u"
+                - "ims"
+                - "-p"
+                - "ims_pw"
+                - "--authenticationDatabase"
+                - "admin"
+                - "--quiet"
+                - "--eval"
                 - "db.adminCommand('ping').ok"
-            initialDelaySeconds: 45
+            initialDelaySeconds: 60
+            timeoutSeconds: 5
             periodSeconds: 20
+            failureThreshold: 5
+
           resources:
             requests:
               cpu: 100m
@@ -72,11 +100,13 @@ spec:
             limits:
               cpu: "1"
               memory: 512Mi
+
   volumeClaimTemplates:
     - metadata:
         name: data
       spec:
-        accessModes: [ReadWriteOnce]
+        accessModes:
+          - ReadWriteOnce
         resources:
           requests:
             storage: 1Gi

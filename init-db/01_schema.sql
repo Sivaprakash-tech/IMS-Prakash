@@ -1,6 +1,5 @@
 -- TimescaleDB extension lives in the same Postgres container.
 -- One container, two roles: transactional (work_items/rca) and timeseries (signal_metrics).
-CREATE EXTENSION IF NOT EXISTS timescaledb;
 
 CREATE TYPE component_type AS ENUM ('CACHE', 'RDBMS', 'API', 'MCP', 'QUEUE', 'NOSQL');
 CREATE TYPE severity_level AS ENUM ('INFO', 'WARN', 'ERROR', 'CRITICAL');

@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   postgres:
     image: timescale/timescaledb:2.16.1-pg16
@@ -7,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ims_pw}
       POSTGRES_DB: ${POSTGRES_DB:-ims}
     ports:
-      - "5433:5432"
+      - "55433:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d:ro
@@ -24,7 +26,7 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-ims}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-ims_pw}
     ports:
-      - "27018:27017"
+      - "37018:27017"
     volumes:
       - mongo_data:/data/db
     healthcheck:
@@ -37,7 +39,7 @@ services:
     image: redis:7-alpine
     container_name: ims_redis
     ports:
-      - "6380:6379"
+      - "16380:6379"
     volumes:
       - redis_data:/data
     command: ["redis-server", "--appendonly", "yes"]
@@ -74,7 +76,7 @@ services:
       RATE_LIMIT_PER_SECOND: ${RATE_LIMIT_PER_SECOND:-1000}
       THROUGHPUT_LOG_INTERVAL: ${THROUGHPUT_LOG_INTERVAL:-5}
     ports:
-      - "8000:8000"
+      - "9000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,7 +91,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 20s
+      start_period: 30s
 
   dashboard:
     build:
@@ -97,10 +99,10 @@ services:
       dockerfile: Dockerfile
     container_name: ims_dashboard
     environment:
-      BACKEND_URL: http://backend:8000
+      BACKEND_URL: http://backend:8000   # ⚠️ DO NOT CHANGE
       DASHBOARD_REFRESH_SECONDS: ${DASHBOARD_REFRESH_SECONDS:-2}
     ports:
-      - "8501:8501"
+      - "8600:8501"
     depends_on:
       backend:
         condition: service_healthy
@@ -112,7 +114,7 @@ services:
     container_name: ims_locust
     command: ["locust", "-f", "/app/scripts/locustfile.py", "--host=http://backend:8000"]
     ports:
-      - "8089:8089"
+      - "8090:8089"
     depends_on:
       backend:
         condition: service_healthy

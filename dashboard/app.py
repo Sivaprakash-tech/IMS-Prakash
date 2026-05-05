@@ -1,4 +1,4 @@
- from __future__ import annotations
+from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
@@ -25,6 +25,7 @@ STATE_BADGE = {
     "RESOLVED": ":violet[RESOLVED]",
     "CLOSED": ":green[CLOSED]",
 }
+
 ROOT_CAUSE_CATEGORIES = [
     "INFRASTRUCTURE",
     "NETWORK",
@@ -72,7 +73,6 @@ healthy = health.get("status") == "ok"
 
 hc1, hc2, hc3, hc4, hc5 = st.columns(5)
 
-# ✅ Updated status indicator
 hc1.markdown("🟢 **Backend OK**" if healthy else "🔴 **Backend DOWN**")
 
 metrics = api_get("/metrics")
@@ -84,17 +84,30 @@ hc3.metric("Queue % full", f"{float(q.get('queue_pct_full', 0))*100:.1f}%")
 hc4.metric("Signals/sec", t.get("signals_in_per_sec", 0))
 hc5.metric("Dropped", q.get("dropped_total", 0))
 
-# ---------- NEW: Throughput Graph ----------
+# ---------- FIXED: Throughput Graph ----------
 st.subheader("Throughput (last window)")
 
+# ✅ maintain history
+if "throughput_history" not in st.session_state:
+    st.session_state.throughput_history = []
+
 try:
-    df = pd.DataFrame([{
-        "in": float(t.get("signals_in_per_sec", 0)),
-        "processed": float(t.get("signals_processed_per_sec", 0))
-    }])
-    st.line_chart(df)
-except Exception:
-    st.info("No throughput yet")
+    if t:
+        st.session_state.throughput_history.append({
+            "in": float(t.get("signals_in_per_sec", 0)),
+            "processed": float(t.get("signals_processed_per_sec", 0)),
+        })
+
+        # keep last 20 points
+        st.session_state.throughput_history = st.session_state.throughput_history[-20:]
+
+        df = pd.DataFrame(st.session_state.throughput_history)
+        st.line_chart(df)
+    else:
+        st.info("No throughput yet")
+
+except Exception as e:
+    st.warning(f"throughput graph error: {e}")
 
 # ---------- Tabs ----------
 tab_live, tab_closed, tab_detail, tab_rca = st.tabs(
@@ -109,15 +122,22 @@ with tab_live:
         st.info("No incidents yet")
     else:
         df = pd.DataFrame(incidents)
-        st.dataframe(df)
 
-# ---------- NEW: Closed Incidents ----------
+        # sort by severity
+        if "severity" in df.columns:
+            df["sev_rank"] = df["severity"].map(SEVERITY_ORDER)
+            df = df.sort_values(by="sev_rank", ascending=False)
+
+        st.dataframe(df.drop(columns=["sev_rank"], errors="ignore"))
+
+# ---------- CLOSED INCIDENTS ----------
 with tab_closed:
     st.subheader("Closed incidents")
 
     try:
         incidents = api_get("/incidents", state="CLOSED", limit=100)
-    except:
+    except Exception as e:
+        st.error(f"failed to load: {e}")
         incidents = []
 
     if not incidents:
@@ -132,11 +152,12 @@ with tab_closed:
                 "MTTR": fmt_mttr(i.get("mttr_seconds")),
                 "Closed At": fmt_dt(i.get("end_time")),
             })
-        st.dataframe(pd.DataFrame(rows))
+        st.dataframe(pd.DataFrame(rows), use_container_width=True)
 
-# ---------- Detail ----------
+# ---------- Incident Detail ----------
 with tab_detail:
     wid = st.text_input("Work item ID")
+
     if wid:
         data = api_get(f"/incidents/{wid}")
         st.json(data)
@@ -144,9 +165,10 @@ with tab_detail:
 # ---------- RCA ----------
 with tab_rca:
     wid = st.text_input("Work item ID (RCA)")
+
     if wid:
         category = st.selectbox("Category", ROOT_CAUSE_CATEGORIES)
-        fix = st.text_area("Fix")
+        fix = st.text_area("Fix applied")
         prev = st.text_area("Prevention")
 
         if st.button("Submit RCA"):
@@ -155,7 +177,12 @@ with tab_rca:
                 "fix_applied": fix,
                 "prevention": prev,
                 "rca_start_time": datetime.now(timezone.utc).isoformat(),
-                "rca_end_time": datetime.now(timezone.utc).isoformat()
+                "rca_end_time": datetime.now(timezone.utc).isoformat(),
             }
-            api_post(f"/incidents/{wid}/rca", payload)
-            st.success("RCA submitted")
+
+            code, resp = api_post(f"/incidents/{wid}/rca", payload)
+
+            if code == 200:
+                st.success("RCA submitted")
+            else:
+                st.error(resp)

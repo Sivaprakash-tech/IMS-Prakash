@@ -12,6 +12,6 @@ RUN pip install -r /app/requirements.txt
 
 COPY app.py /app/app.py
 
-EXPOSE 8502
+EXPOSE 8501
 
-CMD ["streamlit", "run", "/app/app.py", "--server.port=8502", "--server.address=0.0.0.0", "--server.headless=true", "--browser.gatherUsageStats=false"]
+CMD ["streamlit", "run", "/app/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true", "--browser.gatherUsageStats=false"]
