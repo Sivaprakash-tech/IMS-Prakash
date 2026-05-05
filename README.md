@@ -41,13 +41,13 @@ Locust → Backend → Redis Queue → Workers → MongoDB + PostgreSQL → Dash
 
 #  Tech Stack Decisions
 
-## FastAPI → High-performance async framework that efficiently handles multiple concurrent requests. Ideal for real-time signal ingestion with low latency.
-## Redis → Used as an in-memory queue to buffer incoming signals and implement backpressure. Ensures smooth handling of high traffic without overloading the system.
-## MongoDB → Stores raw signals with a flexible schema, allowing easy handling of varying data formats. Optimized for high write throughput.
-## PostgreSQL → Used for incident management with strong ACID consistency. Ensures reliable tracking of incident states and RCA data.
-## Streamlit → Enables quick development of an interactive dashboard with minimal frontend effort. Provides real-time visualization of system metrics.
-## Kubernetes (KIND) → Manages container orchestration, scaling, and self-healing of services. Ensures the system is resilient and production-ready.
-## Docker → Containerizes all services for consistent and portable deployments. Simplifies integration with Kubernetes.
+1) FastAPI → High-performance async framework that efficiently handles multiple concurrent requests. Ideal for real-time signal ingestion with low latency.
+2) Redis → Used as an in-memory queue to buffer incoming signals and implement backpressure. Ensures smooth handling of high traffic without overloading the system.
+3) MongoDB → Stores raw signals with a flexible schema, allowing easy handling of varying data formats. Optimized for high write throughput.
+4) PostgreSQL → Used for incident management with strong ACID consistency. Ensures reliable tracking of incident states and RCA data.
+5) Streamlit → Enables quick development of an interactive dashboard with minimal frontend effort. Provides real-time visualization of system metrics.
+6) Kubernetes (KIND) → Manages container orchestration, scaling, and self-healing of services. Ensures the system is resilient and production-ready.
+7) Docker → Containerizes all services for consistent and portable deployments. Simplifies integration with Kubernetes.
 
 ---
 
