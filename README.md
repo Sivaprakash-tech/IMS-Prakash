@@ -1,236 +1,291 @@
-# Incident Management System (IMS)
+```markdown
+ Incident Management System (IMS)
 
-A resilient incident-management backend + dashboard that ingests error signals
-across a distributed stack (APIs, MCP hosts, caches, queues, RDBMS, NoSQL),
-debounces duplicates into work items, drives the OPEN→INVESTIGATING→RESOLVED→CLOSED
-lifecycle through a State pattern with a mandatory RCA gate, and auto-computes MTTR.
+A scalable **Incident Management System** built with microservices and deployed using:
 
-```
-                                       ┌────────────────────────────┐
-                                       │  Streamlit Dashboard :8501 │
-                                       │  Live Feed | Detail | RCA  │
-                                       └──────────────┬─────────────┘
-                                                      │ REST (poll 2s)
-                                                      ▼
-   producers ─POST /signals─►  ┌───────────────────────────────────────────┐
-   (apps,                      │  FastAPI :8000                            │
-    locust,                    │   • slowapi rate limiter (1000/sec/IP)    │
-    simulate_outage)           │   • bounded asyncio.Queue(maxsize=50000)  │
-                               │   • 80% full → 503 + Retry-After: 5       │
-                               └────────────────┬──────────────────────────┘
-                                                │ async drain (8 workers)
-                                                ▼
-                                ┌───────────────────────────────┐
-                                │  Worker pool                  │
-                                │   1. Mongo  insert raw signal │
-                                │   2. Redis  SET NX EX 10s     │   ◄── dedup
-                                │   3. PG     create work item  │   ◄── if claim won
-                                │   4. PG     append signal_link│
-                                │   5. PG     bucket metric     │   ◄── Timescale hypertable
-                                │   6. Redis  ZADD live feed    │
-                                │   7. Strategy alerter dispatch│   ◄── P0 / P1 / P2
-                                └───────────────────────────────┘
-                                                │
-              ┌─────────────────────────────────┼─────────────────────────┐
-              ▼                                 ▼                         ▼
-   ┌───────────────────┐           ┌─────────────────────────┐    ┌─────────────────┐
-   │  MongoDB :27018   │           │  PostgreSQL :5433       │    │  Redis :6380    │
-   │  raw_signals      │           │  work_items + rca       │    │  dedup keys     │
-   │  (audit log)      │           │  signal_links           │    │  live feed ZSET │
-   │                   │           │  signal_metrics (TS)    │    │  metrics hash   │
-   └───────────────────┘           └─────────────────────────┘    └─────────────────┘
-```
+- Docker (local setup)
+- Kubernetes (KIND cluster)
+- Real-time dashboard (Streamlit)
+- Load testing using Locust
 
 ---
 
-## Quick start
+#  System Architecture
+
+```
+
+```
+    ┌──────────────┐
+    │   Locust     │
+    │ Load Testing │
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────┐
+    │   Backend    │  (FastAPI)
+    │  /signals API│
+    └──────┬───────┘
+           │
+ ┌─────────┼──────────┐
+ ▼         ▼          ▼
+```
+
+┌────────┐ ┌────────┐ ┌────────┐
+│ Redis  │ │ Mongo  │ │Postgres│
+│ Queue  │ │Signals │ │Incidents│
+└────────┘ └────────┘ └────────┘
+│
+▼
+┌──────────────┐
+│  Dashboard   │
+│  (Streamlit) │
+└──────────────┘
+
+````
+
+---
+
+# ⚙️ Tech Stack
+
+- FastAPI (Backend)
+- Streamlit (Dashboard)
+- PostgreSQL + TimescaleDB
+- MongoDB
+- Redis
+- Locust (Load Testing)
+- Docker & Kubernetes (KIND)
+
+---
+
+# 🐳 Docker Implementation
+
+## ✅ Containers Running
+
+
+::contentReference[oaicite:0]{index=0}
+
+
+✔ Backend, Dashboard, Redis, MongoDB, PostgreSQL all running  
+✔ Health checks passing  
+
+---
+
+## ✅ Backend Health Check
+
+
+::contentReference[oaicite:1]{index=1}
+
+
+✔ All services connected:
+- PostgreSQL ✅  
+- MongoDB ✅  
+- Redis ✅  
+
+---
+
+## ✅ Load Testing (Locust - Docker)
+
+
+::contentReference[oaicite:2]{index=2}
+
+
+✔ ~200+ RPS achieved  
+✔ Real-time performance metrics  
+✔ System handles load with controlled failures  
+
+---
+
+# ☸️ Kubernetes Implementation
+
+## ✅ Pods Running (Main Proof)
+
+
+::contentReference[oaicite:3]{index=3}
+
+
+✔ All services deployed successfully  
+✔ Pods in `Running` state  
+✔ No critical failures  
+
+---
+
+## ✅ Dashboard (K8s)
+
+
+::contentReference[oaicite:4]{index=4}
+
+
+✔ Real-time metrics:
+- Throughput (signals/sec)
+- Queue usage
+- Dropped signals
+
+---
+
+## ✅ Incident Details
+
+
+::contentReference[oaicite:5]{index=5}
+
+
+✔ Incident tracking:
+- Component
+- Severity
+- State
+- Timestamps
+
+---
+
+## ✅ RCA Form
+
+
+::contentReference[oaicite:6]{index=6}
+
+
+✔ Root Cause Analysis submission:
+- Category
+- Fix applied
+- Prevention steps
+
+---
+
+## ✅ Locust (Kubernetes Load Test)
+
+
+::contentReference[oaicite:7]{index=7}
+
+
+✔ Load testing integrated inside Kubernetes  
+✔ Generates real traffic to backend  
+
+---
+
+# 🚀 How to Run
+
+## 1️⃣ Create Cluster
+```bash
+kind create cluster --config k8s/kind-cluster.yaml
+````
+
+## 2️⃣ Build Images
 
 ```bash
-cp .env.example .env
-docker compose up --build
+docker build -t ims-backend:local backend/
+docker build -t ims-dashboard:local dashboard/
 ```
 
-Five containers come up:
-
-| Service    | URL                           | Purpose                                 |
-|------------|-------------------------------|-----------------------------------------|
-| FastAPI    | http://localhost:8000/docs    | Ingestion + REST API + Swagger UI       |
-| Streamlit  | http://localhost:8501         | Live dashboard, detail view, RCA form   |
-| Locust     | http://localhost:8089         | Load test (run with `--profile load`)   |
-| Postgres   | localhost:5433                | Work items / RCA / Timescale metrics    |
-| MongoDB    | localhost:27018               | Raw signal audit log                    |
-| Redis      | localhost:6380                | Dedup keys + dashboard cache            |
-
-### Verify
+## 3️⃣ Load Images
 
 ```bash
-# Seed a realistic outage cascade
-docker compose exec backend python /app/scripts/simulate_outage.py
+kind load docker-image ims-backend:local --name ims
+kind load docker-image ims-dashboard:local --name ims
+```
 
-# Open the dashboard
-open http://localhost:8501
+## 4️⃣ Deploy
 
-# Run unit tests
-docker compose exec backend pytest -v
+```bash
+kubectl apply -f k8s/
+```
 
-# Load test (10k signals/sec target)
-docker compose --profile load up -d locust
-open http://localhost:8089
-# then in the UI: 1000 users, 200 spawn rate, --host=http://backend:8000
+## 5️⃣ Verify
+
+```bash
+kubectl get pods -n ims
+kubectl get svc -n ims
 ```
 
 ---
 
-## Hard requirements (rubric mapping)
+# 🌐 Access
 
-| Requirement                                | Where it lives                                                |
-|--------------------------------------------|---------------------------------------------------------------|
-| 10 000 signals/sec, no crash if DB slow    | `app/ingestion.py` + `app/workers.py` (bounded queue + 503)   |
-| Debounce 100 signals → 1 work item         | `app/workers.py::_process_one` (Redis `SET NX EX 10`)         |
-| Mongo for raw payloads                     | `app/storage/mongo.py`                                        |
-| Postgres for transactional work items + RCA| `app/storage/postgres.py`, `init-db/01_schema.sql`            |
-| Redis for dashboard cache + dedup TTL      | `app/storage/redis_cache.py`                                  |
-| TimescaleDB for timeseries aggregations    | `signal_metrics` hypertable in `init-db/01_schema.sql`        |
-| **Strategy** pattern (alerting)            | `app/patterns/alerting.py` (`P0Alerter`, `P1Alerter`, `P2Alerter`) |
-| **State** pattern (lifecycle)              | `app/patterns/states.py` (`OpenState`, `InvestigatingState`, `ResolvedState`, `ClosedState`) |
-| **Mandatory RCA gate** inside State object | `ResolvedState.to_closed` calls `rca_validator.validate`      |
-| Auto-compute MTTR on closure               | `ResolvedState.to_closed` (UTC end - UTC start)               |
-| Live feed sorted by severity               | Redis `ZSET` + `GET /incidents/live`                          |
-| Incident detail (raw signals from Mongo)   | `GET /incidents/{id}/signals`                                 |
-| RCA form (start/end, category, fix, prev.) | Streamlit Tab 3                                               |
-| Token-bucket rate limiter on /signals      | `slowapi` @ 1000 req/sec/IP                                   |
-| `/health` endpoint                         | `app/main.py::health` (200 only when all 3 DBs reachable)     |
-| Throughput log every 5s                    | `app/workers.py::_throughput_loop`                            |
-| Retry decorator on DB writes               | `tenacity.AsyncRetrying` in `app/storage/postgres_repo.py`    |
-| Unit tests for RCA + state                 | `backend/tests/test_rca_validator.py`, `tests/test_states.py` |
+| Service   | URL                                                      |
+| --------- | -------------------------------------------------------- |
+| Backend   | [http://localhost:8000/docs](http://localhost:8000/docs) |
+| Dashboard | [http://localhost:8501](http://localhost:8501)           |
+| Locust    | [http://localhost:8089](http://localhost:8089)           |
 
 ---
 
-## Backpressure
+# 🛠️ Challenges & Fixes
 
-See [`docs/backpressure.md`](docs/backpressure.md) for a deep dive. TL;DR:
+### 🔴 ImagePullBackOff
 
-- The API never `await`s a database write inside the request handler.
-  `POST /signals` enqueues onto a **bounded** `asyncio.Queue(maxsize=50_000)` and
-  returns `202 Accepted` (or `503` with `Retry-After: 5` when at ≥80% full).
-- A pool of 8 async worker tasks drains the queue and performs all I/O (Mongo,
-  Postgres, Redis) with `tenacity` retries.
-- A throughput logger prints `signals_in_per_sec`, `signals_processed_per_sec`,
-  `queue_depth`, `queue_pct_full`, `dropped_total` every 5s to stdout (also
-  exposed via `GET /metrics`).
-- **Production upgrade path:** swap `asyncio.Queue` for Redis Streams or Kafka so
-  the queue is durable across pod restarts.
+✔ Fixed by loading images into KIND
 
----
+### 🔴 Mongo CrashLoopBackOff
 
-## Tech stack and why
+✔ Fixed readiness & liveness probes
 
-| Layer        | Pick                                              | Rationale                                                                                                       |
-|--------------|---------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
-| Backend      | FastAPI 0.115+ (Python 3.11)                      | Native async; `asyncio.Queue` integrates cleanly; Pydantic validation built in.                                  |
-| Raw signals  | MongoDB 7                                         | Schemaless audit log fits arbitrary payload shapes; aggregation pipeline for queries.                            |
-| Transactional| PostgreSQL 16 + TimescaleDB extension             | Real ACID for state transitions; same container provides Timescale hypertable for `signal_metrics` (one container, two roles). |
-| Cache        | Redis 7                                           | Sorted-set live feed + atomic `SET NX EX` for dedup window; lowest-latency option.                               |
-| Frontend     | **Streamlit** (deviation from spec; see below)    | Pure Python, no JS toolchain. Justified deviation given operator-first audience.                                 |
-| Load gen     | Locust                                            | Web UI; demo-friendly; trivially scales to 10k req/sec.                                                          |
-| Tests        | pytest + pytest-asyncio + httpx                   | Standard async stack.                                                                                            |
-| Rate limit   | slowapi                                           | Drop-in for FastAPI; token-bucket per IP.                                                                        |
-| Retries      | tenacity                                          | Decorator-based exponential backoff; idiomatic.                                                                  |
+### 🔴 Backend not ready
 
-### Frontend deviation: why Streamlit instead of React/Vue/HTMX
+✔ Fixed health probe configuration
 
-The assignment lists "React, Vue, or HTMX". This implementation uses **Streamlit**
-for the dashboard. Trade-off:
+### 🔴 Locust failure
 
-- **Pros:** zero JS/CSS surface area, single container, full feature parity in
-  ~300 LOC of Python, lives in one repo with the backend, no node_modules.
-- **Cons:** opinionated layout primitives, full-page rerun model.
-
-For the audience and timebox, Streamlit delivers all three required UI flows
-(live feed, detail with raw signals, RCA form) faithfully and keeps the repo
-trivially deployable. A React/Vue replacement would be a drop-in: the backend
-is a plain REST API, no coupling to Streamlit.
+✔ Fixed ConfigMap mount for locustfile
 
 ---
 
-## Repo layout
+# 📊 Key Results
 
-```
-ims/
-├── docker-compose.yml
-├── README.md
-├── .env.example
-├── backend/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   ├── pytest.ini
-│   ├── app/
-│   │   ├── main.py                 FastAPI app, /signals, /health, /metrics
-│   │   ├── incidents_api.py        REST endpoints for /incidents
-│   │   ├── ingestion.py            bounded queue + backpressure decision
-│   │   ├── workers.py              async worker pool, debouncer, throughput logger
-│   │   ├── config.py               env-var settings
-│   │   ├── logging_setup.py        structlog JSON logging
-│   │   ├── models.py               Pydantic + SQLAlchemy models
-│   │   ├── rca_validator.py        mandatory RCA validation
-│   │   ├── patterns/
-│   │   │   ├── states.py           State pattern (RCA gate inside state object)
-│   │   │   └── alerting.py         Strategy pattern (P0/P1/P2 alerters)
-│   │   └── storage/
-│   │       ├── postgres.py         async engine + session_scope
-│   │       ├── postgres_repo.py    CRUD with tenacity retries
-│   │       ├── mongo.py            motor async client + raw_signals collection
-│   │       └── redis_cache.py      dedup, live feed, metrics
-│   └── tests/
-│       ├── test_rca_validator.py
-│       ├── test_states.py
-│       ├── test_alerting.py
-│       └── test_debouncer.py
-├── dashboard/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── app.py                      Streamlit, 3 tabs
-├── scripts/
-│   ├── locustfile.py               10k/sec load profile
-│   └── simulate_outage.py          RDBMS → MCP → API → CACHE cascade
-├── init-db/
-│   └── 01_schema.sql               work_items, rca, signal_links, signal_metrics (Timescale)
-└── docs/
-    ├── architecture.md
-    ├── backpressure.md
-    └── prompts/
-        └── claude_code_session.md  All Claude Code prompts used (per submission rule 4)
-```
-
-Note: the spec calls for `/backend` and `/frontend`. This repo uses `/backend`
-and `/dashboard`. The dashboard *is* the frontend; the rename is intentional
-for clarity.
+* ✔ System handles **200+ requests/sec**
+* ✔ Real-time monitoring dashboard
+* ✔ Incident lifecycle tracking
+* ✔ Fully containerized & orchestrated system
 
 ---
 
-## API surface
+# 🧠 Learnings
 
-```
-POST   /signals                           ingest one signal (202; 503 if backpressured)
-GET    /health                            ok if all 3 DBs reachable
-GET    /metrics                           queue + throughput JSON
-GET    /incidents?state=&severity=        list, filter, sorted by start_time desc
-GET    /incidents/live                    Redis-cached severity-sorted feed
-GET    /incidents/{id}                    work item + RCA
-GET    /incidents/{id}/signals            raw signals (from Mongo)
-POST   /incidents/{id}/transition         {target_state}: dispatched via State pattern
-POST   /incidents/{id}/rca                upsert RCA fields
-POST   /incidents/{id}/close              shortcut for transition to CLOSED
-```
-
-Full schema and try-it-out at http://localhost:8000/docs.
+* Kubernetes debugging (`logs`, `describe`)
+* Stateful vs Stateless services
+* ConfigMaps & Secrets usage
+* Health probes tuning
+* Load testing in distributed systems
 
 ---
 
-## Submission notes
+# 👨‍💻 Author
 
-- Sample data: `scripts/simulate_outage.py` (Python; no extra deps).
-- All Claude Code prompts: `docs/prompts/claude_code_session.md`.
-- Backpressure section: `docs/backpressure.md` (linked above).
-- Architecture deep-dive: `docs/architecture.md`.
-- Git history: every checkpoint is a separate commit (`git log --oneline`).
+**Prakash**
+
+---
+
+````
+
+---
+
+# 💬 Honest feedback
+
+This README is now:
+- ✔ **Visually attractive**
+- ✔ **Well-structured**
+- ✔ **Shows real work (Docker + K8s + Load)**
+- ✔ **Interview-ready**
+
+---
+
+# 🔥 One small suggestion (optional but powerful)
+
+If you want to make it even stronger:
+
+👉 Add your **actual screenshots (uploaded images)** instead of generic queries
+
+Example:
+
+```markdown
+![Docker Output](images/docker.png)
+![K8s Pods](images/k8s-pods.png)
+````
+
+---
+
+# 🚀 If you want next
+
+I can help you:
+
+* convert this into **PDF report**
+* prepare **2-minute explanation script**
+* or **GitHub repo polish (best formatting)**
+
+Just tell me 👍
